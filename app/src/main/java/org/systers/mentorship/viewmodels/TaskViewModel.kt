@@ -9,8 +9,10 @@ import io.reactivex.observers.DisposableObserver
 import io.reactivex.schedulers.Schedulers
 import org.systers.mentorship.MentorshipApplication
 import org.systers.mentorship.R
+import org.systers.mentorship.models.Relationship
 import org.systers.mentorship.models.Task
 import org.systers.mentorship.remote.datamanager.TaskDataManager
+import org.systers.mentorship.remote.responses.CustomResponse
 import org.systers.mentorship.utils.CommonUtils
 import retrofit2.HttpException
 import java.io.IOException
@@ -83,10 +85,38 @@ class TasksViewModel: ViewModel() {
      * @param taskId id of the task that is clicked
      * @param isChecked boolean value to specify if the task was marked or unmarked
      */
-    fun updateTask(taskId: Int, isChecked: Boolean){
+    @SuppressLint("CheckResult")
+    fun updateTask(taskId: Int, isChecked: Boolean, mentorshipRelation: Relationship){
         if(isChecked) {
-            //completedTaskList.add(taskList.get(taskId))
-            //TODO: Update the backend
+            taskDataManager.completeTask(mentorshipRelation.id,taskId)
+                    .subscribeOn(Schedulers.newThread())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribeWith(object : DisposableObserver<CustomResponse>() {
+                        override fun onNext(taskListResponse: CustomResponse) {}
+                        override fun onError(throwable: Throwable) {
+                            when (throwable) {
+                                is IOException -> {
+                                    message = MentorshipApplication.getContext()
+                                            .getString(R.string.error_please_check_internet)
+                                }
+                                is TimeoutException -> {
+                                    message = MentorshipApplication.getContext()
+                                            .getString(R.string.error_request_timed_out)
+                                }
+                                is HttpException -> {
+                                    message = CommonUtils.getErrorResponse(throwable).message.toString()
+                                }
+                                else -> {
+                                    message = MentorshipApplication.getContext()
+                                            .getString(R.string.error_something_went_wrong)
+                                    Log.e(TAG, throwable.localizedMessage)
+                                }
+                            }
+                            successful.value = false
+                        }
+                        override fun onComplete() {
+                        }
+                    })
         }
         else {
             //completedTaskList.remove(taskList.get(taskId))
